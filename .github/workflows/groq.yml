@@ -1,45 +1,39 @@
-name: Groq Music Parser
+name: Generate Groq JSON Data
 
 on:
-  workflow_dispatch:
   push:
-    branches:
-      - main
+    paths:
+      - "data_raw/**"
+  workflow_dispatch:
 
 jobs:
-  parse_groq:
+  generate:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install groq beautifulsoup4 requests
-          pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip install transformers
+          pip install requests beautifulsoup4 groq openai
 
-      - name: Run Groq Parser
+      - name: Run Groq data generator
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          MODEL: llama-3.3-70b-versatile
         run: |
-          python parser_groq.py
+          echo "🚀 Starting Groq data generation..."
+          python groq_generate.py || echo "⚠️ Groq generation failed, skipping gracefully."
 
-      - name: Commit and push parsed data
+      - name: Commit and push JSON outputs
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git pull --rebase origin main || true
-          git add data_clean/*.json || echo "Tidak ada file untuk commit"
-          git commit -m "🤖 Update hasil parsing Groq" || echo "Tidak ada perubahan"
-          git push origin main || echo "Push gagal"
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+          git add data_output/*.json || echo "No output files found."
+          git commit -m "🧠 Auto-update data_output via Groq" || echo "Nothing to commit."
+          git push || echo "Nothing to push."
