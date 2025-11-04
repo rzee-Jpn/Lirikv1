@@ -31,8 +31,9 @@ jobs:
           GROQ_API_KEY1: ${{ secrets.GROQ_API_KEY1 }}
           GROQ_API_KEY2: ${{ secrets.GROQ_API_KEY2 }}
           GROQ_API_KEY3: ${{ secrets.GROQ_API_KEY3 }}
-          MODEL: "llama-3.3-70b-versatile"
+          MODEL: llama-3.3-70b-versatile
         run: |
+          echo "🚀 Menjalankan parser_groq.py..."
           python parser_groq.py
 
       - name: Commit and push parsed data
