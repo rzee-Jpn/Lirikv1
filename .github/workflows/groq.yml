@@ -9,6 +9,8 @@ on:
 jobs:
   parse_groq:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # 🔧 IZIN WAJIB agar bot bisa push ke repo
 
     steps:
       - name: Checkout repository
@@ -35,6 +37,8 @@ jobs:
           python parser_groq.py
 
       - name: Commit and push parsed data
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # otomatis tersedia
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
