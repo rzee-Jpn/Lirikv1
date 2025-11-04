@@ -30,7 +30,7 @@ jobs:
 
       - name: Run Groq Parser
         env:
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY3 }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY1 }}
           MODEL: llama-3.3-70b-versatile   # bisa ganti model terbaru Groq
         run: |
           echo "🚀 Menjalankan parser_groq.py..."
