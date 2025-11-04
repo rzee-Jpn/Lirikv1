@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 RAW_DIR = "data_raw"
 OUT_DIR = "data_clean"
-MODEL = "mixtral-8x7b-32768"
+MODEL = "llama-3.2-70b-versatile"
 
 # --- UTILITAS ---
 def clean_text(html_content):
