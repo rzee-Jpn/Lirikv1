@@ -4,5 +4,9 @@
     "Bio / Profil": {},
     "Diskografi": []
   },
-  "groq_status": "failed"
+  "groq_status": "failed",
+  "groq_error": [
+    "JSONDecodeError di chunk",
+    "JSONDecodeError di chunk"
+  ]
 }
