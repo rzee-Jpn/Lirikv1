@@ -26,21 +26,30 @@ jobs:
           python -m pip install --upgrade pip
           pip install groq beautifulsoup4 requests
 
-      - name: Run Groq Parser
+      - name: Run Groq Parser with retry
         env:
           GROQ_API_KEY1: ${{ secrets.GROQ_API_KEY1 }}
           GROQ_API_KEY2: ${{ secrets.GROQ_API_KEY2 }}
           GROQ_API_KEY3: ${{ secrets.GROQ_API_KEY3 }}
           MODEL: llama-3.3-70b-versatile
         run: |
-          echo "🚀 Menjalankan parser_groq.py..."
-          python parser_groq.py
+          echo "🚀 Menjalankan parser_groq.py dengan retry..."
+          # Loop retry hingga 3 kali jika gagal (rate limit / JSON invalid)
+          MAX_RETRY=3
+          COUNT=0
+          until [ $COUNT -ge $MAX_RETRY ]
+          do
+            python parser_groq.py && break
+            COUNT=$((COUNT+1))
+            echo "⚠️ Parser gagal, menunggu 60 detik sebelum retry ($COUNT/$MAX_RETRY)..."
+            sleep 60
+          done
 
       - name: Commit and push parsed data
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git pull --rebase origin main || true
-          git add data_clean/*.json || echo "Tidak ada file untuk commit"
+          git add data_clean/*.json || echo "Tidak ada file JSON untuk commit"
           git commit -m "🤖 Update hasil parsing Groq" || echo "Tidak ada perubahan"
           git push origin main || echo "Push gagal"
