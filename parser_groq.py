@@ -1,21 +1,40 @@
-import os, json, glob
+import os
+import json
 from groq import Groq
+from bs4 import BeautifulSoup
 
-# === KONFIGURASI ===
+# --- KONFIGURASI ---
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 RAW_DIR = "data_raw"
-CLEAN_DIR = "data_clean"
+OUT_DIR = "data_clean"
+MODEL = "mixtral-8x7b-32768"
 
-# === PASTIKAN FOLDER ADA ===
-os.makedirs(CLEAN_DIR, exist_ok=True)
+# --- UTILITAS ---
+def clean_text(html_content):
+    soup = BeautifulSoup(html_content, "html.parser")
+    return soup.get_text(separator="\n", strip=True)
 
-def parse_with_groq(text):
+def save_json(artist, album, data):
+    artist_folder = os.path.join(OUT_DIR, artist)
+    os.makedirs(artist_folder, exist_ok=True)
+    out_path = os.path.join(artist_folder, f"{album}.json")
+
+    if os.path.exists(out_path):
+        with open(out_path, "r", encoding="utf-8") as f:
+            existing = json.load(f)
+        existing["parsed_info"]["Diskografi"].extend(data["parsed_info"]["Diskografi"])
+        data = existing
+
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    print(f"✅ Disimpan: {out_path}")
+
+def parse_with_groq(raw_text):
     prompt = f"""
-Kamu adalah AI yang menata data musik/artis dari HTML mentah menjadi JSON terstruktur.
-Gunakan format seperti ini:
+Kamu adalah sistem yang menstrukturkan data musik dari teks mentah menjadi JSON dengan format berikut:
 
 {{
-  "raw_text": "<isi text>",
+  "raw_text": "...",
   "parsed_info": {{
     "Bio / Profil": {{
       "Nama lengkap & nama panggung": "",
@@ -25,7 +44,7 @@ Gunakan format seperti ini:
       "Influences / inspirasi": "",
       "Cerita perjalanan musik": "",
       "Foto profil": "",
-      "Link media sosial": {{}}
+      "Link media sosial": ""
     }},
     "Diskografi": [
       {{
@@ -54,49 +73,35 @@ Gunakan format seperti ini:
     ]
   }}
 }}
-Hasilkan hanya JSON valid tanpa penjelasan tambahan.
 
 Teks mentah:
-{text}
+\"\"\"{raw_text}\"\"\"
+
+Keluarkan hanya JSON valid.
 """
     completion = client.chat.completions.create(
-        model="llama-3.2-70b-versatile",  # gunakan model baru
+        model=MODEL,
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.2,
+        temperature=0.3
     )
     return completion.choices[0].message.content
 
+# --- PROSES UTAMA ---
+for file in os.listdir(RAW_DIR):
+    if not file.endswith(".html"):
+        continue
+    file_path = os.path.join(RAW_DIR, file)
+    print(f"🧠 Memproses: {file}")
 
-def safe_filename(name: str):
-    """Ubah nama jadi aman untuk file path."""
-    return "".join(c if c.isalnum() or c in "_-" else "_" for c in name.strip())
+    with open(file_path, "r", encoding="utf-8") as f:
+        html = f.read()
 
-
-# === LOOP SEMUA FILE ===
-for html_file in glob.glob(os.path.join(RAW_DIR, "*.html")):
-    print(f"🧠 Memproses: {os.path.basename(html_file)}")
-
+    text = clean_text(html)
     try:
-        with open(html_file, "r", encoding="utf-8") as f:
-            text = f.read()
-
-        result_json = parse_with_groq(text)
-        result = json.loads(result_json)
-
-        # Ambil info artis & album
-        artis = result["parsed_info"]["Bio / Profil"].get("Nama lengkap & nama panggung", "Unknown")
-        album = result["parsed_info"]["Diskografi"][0].get("Nama album/single", "Unknown_Album")
-
-        # Buat folder per-artis
-        artist_folder = os.path.join(CLEAN_DIR, safe_filename(artis))
-        os.makedirs(artist_folder, exist_ok=True)
-
-        # Simpan file per album
-        output_path = os.path.join(artist_folder, f"{safe_filename(album)}.json")
-        with open(output_path, "w", encoding="utf-8") as f:
-            json.dump(result, f, indent=2, ensure_ascii=False)
-
-        print(f"✅ Sukses: {output_path}")
-
+        json_text = parse_with_groq(text)
+        data = json.loads(json_text)
+        artist = data["parsed_info"]["Bio / Profil"]["Nama lengkap & nama panggung"] or "Unknown"
+        album = data["parsed_info"]["Diskografi"][0]["Nama album/single"] or os.path.splitext(file)[0]
+        save_json(artist.strip().replace(" ", "_"), album.strip().replace(" ", "_"), data)
     except Exception as e:
-        print(f"⚠️ Gagal memproses {html_file}: {e}")
+        print(f"⚠️ Gagal memproses {file}: {e}")
