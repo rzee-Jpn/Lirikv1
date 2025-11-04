@@ -76,9 +76,11 @@ for file in os.listdir(RAW_DIR):
         html = f.read()
 
     text = clean_text(html)
+    groq_status = "failed"
     try:
         json_text = parse_with_groq(text)
         data = json.loads(json_text)
+        groq_status = "success"
 
         # Ekstrak lirik & chord dari raw_text jika Groq tidak memberikan
         if "Lirik" not in data or not data["Lirik"]:
@@ -99,6 +101,9 @@ for file in os.listdir(RAW_DIR):
             if album_name:
                 album = album_name.strip().replace(" ", "_")
 
+        # Tambahkan status Groq
+        data["groq_status"] = groq_status
+
         # Jika file lama sudah ada, merge
         out_folder = os.path.join(OUT_DIR, artist)
         out_path = f"{album}.json"
@@ -106,6 +111,7 @@ for file in os.listdir(RAW_DIR):
             with open(os.path.join(out_folder, out_path), "r", encoding="utf-8") as f:
                 old_data = json.load(f)
             data = merge_data(old_data, data)
+            data["groq_status"] = groq_status  # pastikan tetap update status
 
         save_json_safe(out_folder, out_path, data)
 
@@ -114,5 +120,6 @@ for file in os.listdir(RAW_DIR):
         # Simpan raw_text di folder unknown
         save_json_safe(UNKNOWN_DIR, file.replace(".html", ".json"), {
             "raw_text": text,
-            "parsed_info": {"Bio / Profil": {}, "Diskografi": []}
+            "parsed_info": {"Bio / Profil": {}, "Diskografi": []},
+            "groq_status": groq_status
         })
