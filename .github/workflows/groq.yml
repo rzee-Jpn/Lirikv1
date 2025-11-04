@@ -1,39 +1,46 @@
-name: Generate Groq JSON Data
+name: Groq Music Parser
 
 on:
-  push:
-    paths:
-      - "data_raw/**"
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
-  generate:
+  parse_groq:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
       - name: Install dependencies
         run: |
-          pip install requests beautifulsoup4 groq openai
+          python -m pip install --upgrade pip
+          pip install groq beautifulsoup4 requests
+          pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install transformers
 
-      - name: Run Groq data generator
+      - name: Run Groq Parser
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          MODEL: llama-3.3-70b-versatile
         run: |
-          echo "🚀 Starting Groq data generation..."
-          python groq_generate.py || echo "⚠️ Groq generation failed, skipping gracefully."
+          echo "🚀 Menjalankan parser_groq.py..."
+          python parser_groq.py
 
-      - name: Commit and push JSON outputs
+      - name: Commit and push parsed data
         run: |
-          git config --global user.name "github-actions"
-          git config --global user.email "actions@github.com"
-          git add data_output/*.json || echo "No output files found."
-          git commit -m "🧠 Auto-update data_output via Groq" || echo "Nothing to commit."
-          git push || echo "Nothing to push."
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin main || true
+          git add data_output/*.json || echo "Tidak ada file untuk commit"
+          git commit -m "🤖 Update hasil parsing Groq" || echo "Tidak ada perubahan"
+          git push origin main || echo "Push gagal"
