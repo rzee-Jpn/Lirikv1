@@ -7,11 +7,10 @@ from bs4 import BeautifulSoup
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 RAW_DIR = "data_raw"
 OUT_DIR = "data_output"
-MODEL = os.getenv("MODEL", "llama-3.3-70b-versatile")  # default model
+MODEL = os.getenv("MODEL", "llama-3.3-70b-versatile")  # model default
 
 # --- UTILITAS ---
 def clean_text(html_content):
-    """Bersihkan HTML menjadi text mentah."""
     try:
         soup = BeautifulSoup(html_content, "html.parser")
         return soup.get_text(separator="\n", strip=True)
@@ -19,7 +18,6 @@ def clean_text(html_content):
         return html_content  # fallback jika BeautifulSoup gagal
 
 def save_json(artist, album, data):
-    """Simpan JSON per album, update jika sudah ada."""
     artist_folder = os.path.join(OUT_DIR, artist)
     os.makedirs(artist_folder, exist_ok=True)
     out_path = os.path.join(artist_folder, f"{album}.json")
@@ -28,8 +26,7 @@ def save_json(artist, album, data):
         try:
             with open(out_path, "r", encoding="utf-8") as f:
                 existing = json.load(f)
-            # Update diskografi jika ada
-            existing["parsed_info"]["Diskografi"].extend(data["parsed_info"]["Diskografi"])
+            existing["parsed_info"]["Diskografi"].extend(data["parsed_info"].get("Diskografi", []))
             data = existing
         except Exception:
             pass  # jika gagal load, timpa saja
@@ -39,7 +36,6 @@ def save_json(artist, album, data):
     print(f"✅ Disimpan: {out_path}")
 
 def parse_with_groq(raw_text):
-    """Parse raw text dengan Groq, kembalikan dict JSON."""
     prompt = f"""
 Strukturkan data musik/artis dari teks mentah menjadi JSON. Format output:
 
@@ -114,7 +110,6 @@ for file in sorted(os.listdir(RAW_DIR)):
         json_text = parse_with_groq(text)
         data = json.loads(json_text)
 
-        # Ambil nama artis dan album
         bio = data.get("parsed_info", {}).get("Bio / Profil", {})
         diskografi = data.get("parsed_info", {}).get("Diskografi", [])
 
