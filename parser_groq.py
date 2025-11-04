@@ -1,164 +1,164 @@
 import os
 import json
-from bs4 import BeautifulSoup
+from groq import Groq
 
-RAW_DIR = "data_raw"
-CLEAN_DIR = "data_clean"
+# ============================================================
+#  GROQ MUSIC PARSER - MULTI ARTIST & MULTI ALBUM
+# ============================================================
 
-# === TEMPLATE BIO ARTIS ===
-def template_bio(artis):
-    return {
-        "Nama lengkap & nama panggung": artis,
-        "Asal / domisili": "",
-        "Tanggal lahir": "",
-        "Genre musik": "",
-        "Influences / inspirasi": "",
-        "Cerita perjalanan musik": "",
-        "Foto profil": "",
-        "Link media sosial": {
-            "BandLab": "",
-            "YouTube": "",
-            "Spotify": "",
-            "Instagram": ""
-        }
-    }
+# Inisialisasi klien Groq
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-# === TEMPLATE ALBUM ===
-def template_album(album_name):
-    return {
-        "Nama album/single": album_name,
+# Folder input/output
+raw_root = "data_raw"
+clean_root = "data_clean"
+os.makedirs(clean_root, exist_ok=True)
+
+# ============================================================
+#  LOOP ARTIST DAN ALBUM
+# ============================================================
+
+for artist_name in os.listdir(raw_root):
+    artist_path = os.path.join(raw_root, artist_name)
+    if not os.path.isdir(artist_path):
+        continue
+
+    print(f"\n🎤 Memproses artis: {artist_name}")
+    os.makedirs(os.path.join(clean_root, artist_name), exist_ok=True)
+
+    # Loop album/single (subfolder dalam artis)
+    for album_name in os.listdir(artist_path):
+        album_path = os.path.join(artist_path, album_name)
+        if not os.path.isdir(album_path):
+            continue
+
+        print(f"💿 Album: {album_name}")
+
+        # Gabungkan semua HTML/text di dalam album jadi satu
+        combined_text = ""
+        for file_name in os.listdir(album_path):
+            if file_name.endswith(".html") or file_name.endswith(".txt"):
+                file_path = os.path.join(album_path, file_name)
+                with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                    combined_text += f"\n\n---- {file_name} ----\n"
+                    combined_text += f.read()
+
+        if not combined_text.strip():
+            print(f"⚠️ Tidak ada file HTML/TXT ditemukan di {album_name}")
+            continue
+
+        # ============================================================
+        #  PROMPT GROQ UNTUK PEMBENTUKAN JSON TERSTRUKTUR
+        # ============================================================
+
+        prompt = f"""
+Kamu adalah sistem ekstraksi data musik.
+Analisis teks/HTML berikut dan ubah menjadi JSON dengan struktur yang konsisten.
+
+Keluaran harus dalam format JSON:
+{{
+  "raw_text": "<salin seluruh isi text>",
+  "parsed_info": {{
+    "Bio / Profil": {{
+      "Nama lengkap & nama panggung": "",
+      "Asal / domisili": "",
+      "Tanggal lahir": "",
+      "Genre musik": "",
+      "Influences / inspirasi": "",
+      "Cerita perjalanan musik": "",
+      "Foto profil": "",
+      "Link media sosial": {{
+        "YouTube": "",
+        "Spotify": "",
+        "Instagram": "",
+        "BandLab": ""
+      }}
+    }},
+    "Diskografi": [
+      {{
+        "Nama album/single": "",
         "Tanggal rilis": "",
         "Label": "",
         "Jumlah lagu": "",
         "Cover art": "",
         "Produksi oleh / kolaborator tetap": "",
-        "Lagu / Song List": []
-    }
+        "Lagu / Song List": [
+          {{
+            "Judul lagu": "",
+            "Composer": "",
+            "Lyricist": "",
+            "Featuring": "",
+            "Tahun rilis": "",
+            "Album asal": "",
+            "Durasi": "",
+            "Genre": "",
+            "Key": "",
+            "Chord & lyrics": "",
+            "Terjemahan": ""
+          }}
+        ]
+      }}
+    ]
+  }}
+}}
 
-# === TEMPLATE LAGU ===
-def template_lagu(judul, album_name):
-    return {
-        "Judul lagu": judul,
-        "Composer": "",
-        "Lyricist": "",
-        "Featuring": "",
-        "Tahun rilis": "",
-        "Album asal": album_name,
-        "Durasi": "",
-        "Genre": "",
-        "Key": "",
-        "Chord & lyrics": "",
-        "Terjemahan": ""
-    }
+Teks/HTML untuk diproses:
+{combined_text}
+"""
 
-# === Fungsi parsing HTML lagu ===
-def parse_html_song(file_path):
-    with open(file_path, "r", encoding="utf-8") as f:
-        html = f.read()
-    soup = BeautifulSoup(html, "lxml")
+        # ============================================================
+        #  PANGGIL API GROQ
+        # ============================================================
 
-    judul = (
-        soup.find("h1").get_text(strip=True)
-        if soup.find("h1")
-        else soup.title.get_text(strip=True)
-        if soup.title
-        else os.path.splitext(os.path.basename(file_path))[0]
-    )
+        try:
+            response = client.chat.completions.create(
+                model="llama3-70b-8192",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+            )
 
-    teks = soup.get_text(separator="\n", strip=True)
-    return judul, teks, html
+            content = response.choices[0].message.content.strip()
 
-# === Fungsi untuk merge (update incremental) ===
-def merge_album_data(existing_data, new_album):
-    """
-    Menggabungkan data lama dan baru tanpa menimpa lagu yang sudah ada.
-    Jika ada lagu baru -> tambahkan.
-    Jika lagu sama tapi teks berbeda -> update.
-    """
-    existing_album = existing_data["parsed_info"]["Diskografi"][0]
-    existing_songs = {s["Judul lagu"]: s for s in existing_album["Lagu / Song List"]}
-    new_songs = new_album["Lagu / Song List"]
+            # ============================================================
+            #  CEK VALIDITAS OUTPUT
+            # ============================================================
+            try:
+                parsed_json = json.loads(content)
+            except json.JSONDecodeError:
+                # Jika bukan JSON valid, bungkus manual
+                parsed_json = {"raw_text": combined_text, "parsed_info": content}
 
-    updated = False
+            # ============================================================
+            #  SIMPAN KE FOLDER data_clean/<ARTIST>/<ALBUM>.json
+            # ============================================================
 
-    for song in new_songs:
-        judul = song["Judul lagu"]
-        if judul not in existing_songs:
-            # Tambah lagu baru
-            existing_album["Lagu / Song List"].append(song)
-            updated = True
-        else:
-            # Jika lirik berubah, update
-            if song["Chord & lyrics"] != existing_songs[judul]["Chord & lyrics"]:
-                existing_songs[judul]["Chord & lyrics"] = song["Chord & lyrics"]
-                updated = True
+            output_path = os.path.join(clean_root, artist_name, f"{album_name}.json")
 
-    if updated:
-        existing_album["Jumlah lagu"] = str(len(existing_album["Lagu / Song List"]))
+            # Jika file sudah ada → merge update
+            if os.path.exists(output_path):
+                with open(output_path, "r", encoding="utf-8") as f:
+                    old_data = json.load(f)
+                if (
+                    "parsed_info" in old_data
+                    and "Diskografi" in old_data["parsed_info"]
+                    and "parsed_info" in parsed_json
+                    and "Diskografi" in parsed_json["parsed_info"]
+                ):
+                    old_data["parsed_info"]["Diskografi"].extend(
+                        parsed_json["parsed_info"]["Diskografi"]
+                    )
+                parsed_json = old_data
 
-    return existing_data, updated
+            with open(output_path, "w", encoding="utf-8") as out:
+                json.dump(parsed_json, out, ensure_ascii=False, indent=2)
 
-# === Fungsi utama ===
-def main():
-    os.makedirs(CLEAN_DIR, exist_ok=True)
+            print(f"✅ Disimpan ke: {output_path}")
 
-    for artis in os.listdir(RAW_DIR):
-        artis_path = os.path.join(RAW_DIR, artis)
-        if not os.path.isdir(artis_path):
-            continue
+        except Exception as e:
+            print(f"❌ Error pada {artist_name}/{album_name}: {e}")
 
-        for album in os.listdir(artis_path):
-            album_path = os.path.join(artis_path, album)
-            if not os.path.isdir(album_path):
-                continue
+# ============================================================
+#  SELESAI
+# ============================================================
 
-            print(f"🎧 Memproses {artis} - {album}")
-
-            album_data = template_album(album)
-            song_list = []
-            raw_html_joined = ""
-
-            for file in os.listdir(album_path):
-                if not file.endswith(".html"):
-                    continue
-                file_path = os.path.join(album_path, file)
-                judul, teks, raw_html = parse_html_song(file_path)
-
-                lagu = template_lagu(judul, album)
-                lagu["Chord & lyrics"] = teks
-                song_list.append(lagu)
-                raw_html_joined += f"\n<!-- {file} -->\n{raw_html}"
-
-            album_data["Jumlah lagu"] = str(len(song_list))
-            album_data["Lagu / Song List"] = song_list
-
-            parsed_new = {
-                "raw_text": raw_html_joined,
-                "parsed_info": {
-                    "Bio / Profil": template_bio(artis),
-                    "Diskografi": [album_data]
-                }
-            }
-
-            artis_out = os.path.join(CLEAN_DIR, artis)
-            os.makedirs(artis_out, exist_ok=True)
-            output_file = os.path.join(artis_out, f"{album}.json")
-
-            # Jika sudah ada file lama → merge
-            if os.path.exists(output_file):
-                with open(output_file, "r", encoding="utf-8") as f:
-                    existing_data = json.load(f)
-                merged, updated = merge_album_data(existing_data, album_data)
-                if updated:
-                    with open(output_file, "w", encoding="utf-8") as f:
-                        json.dump(merged, f, ensure_ascii=False, indent=2)
-                    print(f"🔁 Update: {output_file}")
-                else:
-                    print(f"⏩ Tidak ada perubahan: {output_file}")
-            else:
-                with open(output_file, "w", encoding="utf-8") as f:
-                    json.dump(parsed_new, f, ensure_ascii=False, indent=2)
-                print(f"✅ Baru dibuat: {output_file}")
-
-if __name__ == "__main__":
-    main()
+print("\n🎯 Parsing selesai untuk semua artis & album di data_raw/")
