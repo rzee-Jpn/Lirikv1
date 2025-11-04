@@ -1,120 +1,83 @@
 import os
 import json
+import re
 from groq import Groq
 from bs4 import BeautifulSoup
 
 # --- KONFIGURASI ---
-client = Groq(api_key=os.getenv("GROQ_API_KEY1"))
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 RAW_DIR = "data_raw"
 OUT_DIR = "data_clean"
 MODEL = os.getenv("MODEL", "llama-3.3-70b-versatile")
 
 # --- UTILITAS ---
 def clean_text(html_content):
-    """Bersihkan HTML menjadi plain text."""
     soup = BeautifulSoup(html_content, "html.parser")
     return soup.get_text(separator="\n", strip=True)
 
-def merge_data(existing, new):
-    """Merge JSON lama dengan data baru secara fleksibel."""
-    # Merge Bio
-    bio_existing = existing.get("parsed_info", {}).get("Bio / Profil", {})
-    bio_new = new.get("parsed_info", {}).get("Bio / Profil", {})
-    for k, v in bio_new.items():
-        if v:  # update only if there's new data
-            bio_existing[k] = v
-    existing["parsed_info"]["Bio / Profil"] = bio_existing
-
-    # Merge Diskografi
-    albums_existing = existing.get("parsed_info", {}).get("Diskografi", [])
-    albums_new = new.get("parsed_info", {}).get("Diskografi", [])
-
-    for album_new in albums_new:
-        match = next((a for a in albums_existing if a.get("Nama album/single") == album_new.get("Nama album/single")), None)
-        if match:
-            # Update lagu list
-            existing_songs = match.get("Lagu / Song List", [])
-            for song_new in album_new.get("Lagu / Song List", []):
-                if not any(s.get("Judul lagu") == song_new.get("Judul lagu") for s in existing_songs):
-                    existing_songs.append(song_new)
-            match["Lagu / Song List"] = existing_songs
-            # Update field album lainnya jika ada data baru
-            for key, val in album_new.items():
-                if val and key != "Lagu / Song List":
-                    match[key] = val
+def format_chord_lyrics(raw_text):
+    """
+    Pisahkan chord dan lirik. Chord di atas lirik.
+    Simple detection: baris yang mengandung chord (A-G, Am, Dm, dsb.)
+    """
+    lines = raw_text.split("\n")
+    chord_lines = []
+    lyric_lines = []
+    chord_pattern = re.compile(r"\b([A-G][#b]?m?(7|maj7|sus4|dim)?)\b")
+    for line in lines:
+        if chord_pattern.search(line):
+            chord_lines.append(line)
         else:
-            albums_existing.append(album_new)
-
-    existing["parsed_info"]["Diskografi"] = albums_existing
-    return existing
+            lyric_lines.append(line)
+    return {
+        "chord_position": "di atas lirik",
+        "chord": "\n".join(chord_lines),
+        "lyrics": "\n".join(lyric_lines)
+    }
 
 def save_json(artist, album, data):
-    """Simpan JSON per artis dan per album."""
-    artist_folder = os.path.join(OUT_DIR, artist)
+    artist_folder = os.path.join(OUT_DIR, artist or "unknown")
     os.makedirs(artist_folder, exist_ok=True)
     out_path = os.path.join(artist_folder, f"{album}.json")
 
     if os.path.exists(out_path):
         with open(out_path, "r", encoding="utf-8") as f:
-            try:
-                existing = json.load(f)
-                data = merge_data(existing, data)
-            except:
-                pass  # fallback: tulis ulang data baru
+            existing = json.load(f)
+        # Merge diskografi
+        for new_album in data.get("parsed_info", {}).get("Diskografi", []):
+            album_name = new_album.get("Nama album/single") or "unknown_album"
+            # Cek jika album sudah ada
+            matched = False
+            for idx, existing_album in enumerate(existing["parsed_info"].get("Diskografi", [])):
+                if existing_album.get("Nama album/single") == album_name:
+                    # Merge lagu
+                    for new_song in new_album.get("Lagu / Song List", []):
+                        matched_song = False
+                        for i, old_song in enumerate(existing_album.get("Lagu / Song List", [])):
+                            if old_song.get("Judul lagu") == new_song.get("Judul lagu"):
+                                # Merge lirik/chord/terjemahan
+                                existing_album["Lagu / Song List"][i].update(new_song)
+                                matched_song = True
+                                break
+                        if not matched_song:
+                            existing_album["Lagu / Song List"].append(new_song)
+                    matched = True
+                    break
+            if not matched:
+                existing["parsed_info"]["Diskografi"].append(new_album)
+        data = existing
 
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     print(f"✅ Disimpan: {out_path}")
 
 def parse_with_groq(raw_text):
-    """Meminta Groq untuk menstrukturkan data HTML menjadi JSON."""
     prompt = f"""
-Kamu adalah sistem yang menstrukturkan data musik/artis dari teks mentah menjadi JSON. 
-Jika tidak ada data, field dikosongi. Teks mentah bisa memiliki bio artis, album, lagu, lirik, dll. 
-JSON harus fleksibel, bisa menambah field baru jika ditemukan data baru. 
-Berikan output hanya JSON valid.
+Kamu adalah sistem yang menstrukturkan data musik dari teks mentah menjadi JSON dengan format fleksibel. 
+Jika ada lirik dan chord gitar, pisahkan di field 'Chord & lyrics' dengan chord di atas lirik. 
+Jika terjemahan tersedia, simpan di field 'Terjemahan'.
 
-Contoh struktur minimal (boleh ada field tambahan):
-{{
-  "raw_text": "...",
-  "parsed_info": {{
-    "Bio / Profil": {{
-      "Nama lengkap & nama panggung": "",
-      "Asal / domisili": "",
-      "Tanggal lahir": "",
-      "Genre musik": "",
-      "Influences / inspirasi": "",
-      "Cerita perjalanan musik": "",
-      "Foto profil": "",
-      "Link media sosial": ""
-    }},
-    "Diskografi": [
-      {{
-        "Nama album/single": "",
-        "Tanggal rilis": "",
-        "Label": "",
-        "Jumlah lagu": "",
-        "Cover art": "",
-        "Produksi oleh / kolaborator tetap": "",
-        "Lagu / Song List": [
-          {{
-            "Judul lagu": "",
-            "Composer": "",
-            "Lyricist": "",
-            "Featuring": "",
-            "Tahun rilis": "",
-            "Album asal": "",
-            "Durasi": "",
-            "Genre": "",
-            "Key": "",
-            "Chord & lyrics": "",
-            "Terjemahan": ""
-          }}
-        ]
-      }}
-    ]
-  }}
-}}
+Output JSON harus valid.
 
 Teks mentah:
 \"\"\"{raw_text}\"\"\"
@@ -141,20 +104,29 @@ for file in os.listdir(RAW_DIR):
         json_text = parse_with_groq(text)
         try:
             data = json.loads(json_text)
-        except:
-            # fallback kalau JSON gagal: simpan minimal
+        except json.JSONDecodeError:
+            # Jika JSON invalid, simpan raw_text ke folder unknown
             data = {"raw_text": text, "parsed_info": {"Bio / Profil": {}, "Diskografi": []}}
-            print(f"⚠️ JSON tidak valid untuk {file}, menyimpan teks mentah.")
+            save_json("unknown", os.path.splitext(file)[0], data)
+            print(f"⚠️ JSON tidak valid untuk {file}, disimpan sebagai raw.")
+            continue
 
-        artist = data.get("parsed_info", {}).get("Bio / Profil", {}).get("Nama lengkap & nama panggung", "Unknown") or "Unknown"
-        album_list = data.get("parsed_info", {}).get("Diskografi", [])
-        if album_list:
-            for album_entry in album_list:
-                album_name = album_entry.get("Nama album/single", os.path.splitext(file)[0])
-                save_json(artist.strip().replace(" ", "_"), album_name.strip().replace(" ", "_"), data)
-        else:
-            # tidak ada album → simpan 1 file per artis
-            save_json(artist.strip().replace(" ", "_"), os.path.splitext(file)[0], data)
+        # Format chord & lirik untuk setiap lagu jika tersedia
+        for album in data.get("parsed_info", {}).get("Diskografi", []):
+            for idx, song in enumerate(album.get("Lagu / Song List", [])):
+                raw_lyrics = song.get("Chord & lyrics") or song.get("Lyrics") or ""
+                if raw_lyrics:
+                    song["Chord & lyrics"] = format_chord_lyrics(raw_lyrics)
+                    if "Lyrics" in song:
+                        del song["Lyrics"]
+
+        artist = data["parsed_info"]["Bio / Profil"].get("Nama lengkap & nama panggung") or "unknown"
+        album_name = (data["parsed_info"]["Diskografi"][0].get("Nama album/single")
+                      if data["parsed_info"]["Diskografi"] else os.path.splitext(file)[0])
+        save_json(artist.strip().replace(" ", "_"), album_name.strip().replace(" ", "_"), data)
 
     except Exception as e:
+        # Jika Groq gagal, simpan mentah
+        data = {"raw_text": text, "parsed_info": {"Bio / Profil": {}, "Diskografi": []}}
+        save_json("unknown", os.path.splitext(file)[0], data)
         print(f"⚠️ Gagal memproses {file}: {e}")
