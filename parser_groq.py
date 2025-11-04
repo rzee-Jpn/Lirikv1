@@ -5,7 +5,7 @@ from groq import Groq
 from bs4 import BeautifulSoup
 
 # --- KONFIGURASI ---
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+client = Groq(api_key=os.getenv("GROQ_API_KEY3"))
 RAW_DIR = "data_raw"
 OUT_DIR = "data_clean"
 MODEL = os.getenv("MODEL", "llama-3.3-70b-versatile")
