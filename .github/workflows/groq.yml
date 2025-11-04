@@ -25,15 +25,14 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install groq beautifulsoup4 requests
-          pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip install transformers
 
       - name: Run Groq Parser
         env:
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          MODEL: llama-3.3-70b-versatile   # bisa ganti model terbaru Groq
+          GROQ_API_KEY1: ${{ secrets.GROQ_API_KEY1 }}
+          GROQ_API_KEY2: ${{ secrets.GROQ_API_KEY2 }}
+          GROQ_API_KEY3: ${{ secrets.GROQ_API_KEY3 }}
+          MODEL: "llama-3.3-70b-versatile"
         run: |
-          echo "🚀 Menjalankan parser_groq.py..."
           python parser_groq.py
 
       - name: Commit and push parsed data
@@ -41,6 +40,6 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git pull --rebase origin main || true
-          git add data_clean/**/*.json || echo "Tidak ada file untuk commit"
+          git add data_clean/*.json || echo "Tidak ada file untuk commit"
           git commit -m "🤖 Update hasil parsing Groq" || echo "Tidak ada perubahan"
           git push origin main || echo "Push gagal"
