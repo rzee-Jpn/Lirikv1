@@ -1,170 +1,125 @@
 import os
-import re
 import json
 import requests
 from bs4 import BeautifulSoup
-from pathlib import Path
 
-# ============ CONFIG ============
-INPUT_DIR = "data_raw"
-OUTPUT_DIR = "data_clean"
-os.makedirs(OUTPUT_DIR, exist_ok=True)
-
+# Ambil API key Groq dari environment GitHub
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-GROQ_MODEL = "llama-3.2-70b-text"  # model baru pengganti llama-3.1-70b-versatile
-GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
-# ============ UTIL FUNGI ============
-def clean_html(html):
+if not GROQ_API_KEY:
+    raise ValueError("❌ GROQ_API_KEY belum diset di Secrets GitHub Actions.")
+
+HEADERS = {
+    "Authorization": f"Bearer {GROQ_API_KEY}",
+    "Content-Type": "application/json"
+}
+
+# Direktori output
+os.makedirs("data_clean", exist_ok=True)
+
+# File input (misal berisi list URL lagu)
+input_file = "data_raw/links.json"
+
+if not os.path.exists(input_file):
+    print("⚠️ File input tidak ditemukan: data_raw/links.json")
+    exit(0)
+
+with open(input_file, "r", encoding="utf-8") as f:
+    links = json.load(f)
+
+# Fungsi untuk ambil HTML
+def fetch_html(url):
+    try:
+        r = requests.get(url, timeout=10)
+        if r.status_code == 200:
+            return r.text
+    except Exception as e:
+        print(f"❌ Gagal ambil {url}: {e}")
+    return None
+
+# Fungsi untuk bersihkan lirik dari HTML
+def clean_lyrics(html):
     soup = BeautifulSoup(html, "html.parser")
-    text = soup.get_text(separator="\n").strip()
-    text = re.sub(r'\n+', '\n', text)
-    return text
 
+    # Hapus script/style
+    for tag in soup(["script", "style", "noscript"]):
+        tag.extract()
 
-def call_groq(prompt):
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "model": GROQ_MODEL,
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.4,
-    }
+    # Cari teks utama
+    text = soup.get_text(separator="\n")
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return "\n".join(lines[:2000])  # batasi panjang teks
 
-    resp = requests.post(GROQ_URL, headers=headers, json=payload)
-    if resp.status_code != 200:
-        raise Exception(f"Error code: {resp.status_code} - {resp.text}")
+# Fungsi untuk minta Groq mem-parsing isi
+def parse_with_groq(text, url):
+    prompt = f"""
+Kamu adalah sistem ekstraksi informasi lagu.
+Ambil dan strukturkan data dari teks berikut ke dalam JSON.
 
-    return resp.json()["choices"][0]["message"]["content"]
+Teks dari: {url}
 
-
-# ============ TEMPLATE DATA ============
-def make_artist_profile(name):
-    return {
-        "Nama lengkap & nama panggung": name,
-        "Asal / domisili": "",
-        "Tanggal lahir": "",
-        "Genre musik": "",
-        "Influences / inspirasi": "",
-        "Cerita perjalanan musik": "",
-        "Foto profil": "",
-        "Link media sosial": {
-            "BandLab": "",
-            "YouTube": "",
-            "Spotify": "",
-            "Instagram": ""
-        }
-    }
-
-
-def merge_artist_data(parsed_info, artist_name):
-    folder = Path(OUTPUT_DIR)
-    folder.mkdir(parents=True, exist_ok=True)
-    file_path = folder / f"{artist_name.lower().replace(' ', '_')}.json"
-
-    if not file_path.exists():
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(parsed_info, f, indent=2, ensure_ascii=False)
-        print(f"🆕 File baru dibuat: {file_path}")
-        return
-
-    with open(file_path, "r", encoding="utf-8") as f:
-        existing_data = json.load(f)
-
-    for new_album in parsed_info.get("Diskografi", []):
-        existing_album = next(
-            (a for a in existing_data["Diskografi"]
-             if a["Nama album/single"].lower() == new_album["Nama album/single"].lower()),
-            None
-        )
-        if existing_album:
-            for new_song in new_album.get("Lagu / Song List", []):
-                existing_titles = [s["Judul lagu"].lower() for s in existing_album["Lagu / Song List"]]
-                if new_song["Judul lagu"].lower() not in existing_titles:
-                    existing_album["Lagu / Song List"].append(new_song)
-        else:
-            existing_data["Diskografi"].append(new_album)
-
-    with open(file_path, "w", encoding="utf-8") as f:
-        json.dump(existing_data, f, indent=2, ensure_ascii=False)
-    print(f"✅ Data artis '{artist_name}' diperbarui: {file_path}")
-
-
-# ============ MAIN ============
-for artist_folder in Path(INPUT_DIR).iterdir():
-    if not artist_folder.is_dir():
-        continue
-
-    artist_name = artist_folder.name
-    print(f"\n🎤 Memproses artis: {artist_name}")
-
-    for file_path in artist_folder.glob("*.html"):
-        print(f"🧠 Memproses: {file_path.name}")
-        with open(file_path, "r", encoding="utf-8") as f:
-            html = f.read()
-
-        text = clean_html(html)
-
-        prompt = f"""
-Kamu adalah asisten yang mem-parsing data lagu Jepang.
-Dari teks berikut, ekstrak informasi lengkap menjadi JSON dengan struktur berikut:
-
+Output JSON harus berformat seperti ini:
 {{
-  "Bio / Profil": {{
-    "Nama lengkap & nama panggung": "...",
-    "Asal / domisili": "...",
-    "Tanggal lahir": "...",
-    "Genre musik": "...",
-    "Influences / inspirasi": "...",
-    "Cerita perjalanan musik": "...",
-    "Foto profil": "...",
-    "Link media sosial": {{
-      "BandLab": "",
-      "YouTube": "",
-      "Spotify": "",
-      "Instagram": ""
-    }}
-  }},
-  "Diskografi": [
-    {{
-      "Nama album/single": "...",
-      "Tanggal rilis": "",
-      "Label": "",
-      "Jumlah lagu": "",
-      "Cover art": "",
-      "Produksi oleh / kolaborator tetap": "",
-      "Lagu / Song List": [
-        {{
-          "Judul lagu": "",
-          "Composer": "",
-          "Lyricist": "",
-          "Featuring": "",
-          "Tahun rilis": "",
-          "Album asal": "",
-          "Durasi": "",
-          "Genre": "",
-          "Key": "",
-          "Chord & lyrics": "",
-          "Terjemahan": ""
-        }}
-      ]
-    }}
-  ]
+  "title": "...",
+  "artist": "...",
+  "album": "...",
+  "label": "...",
+  "release_date": "...",
+  "lyrics_romaji": "...",
+  "lyrics_kanji": "...",
+  "lyrics_english": "...",
+  "cover_image": "...",
+  "youtube": "...",
+  "source": "{url}"
 }}
 
-Teks yang perlu kamu analisis:
+Berikut teks yang harus kamu analisis:
+
 {text}
-        """
+"""
 
+    payload = {
+        "model": "llama-3.1-70b-versatile",
+        "messages": [
+            {"role": "system", "content": "Kamu adalah asisten ekstraksi data lagu yang akurat."},
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.2
+    }
+
+    try:
+        res = requests.post("https://api.groq.com/openai/v1/chat/completions",
+                            headers=HEADERS, json=payload, timeout=60)
+        data = res.json()
+        reply = data["choices"][0]["message"]["content"]
+
+        # Coba ubah ke JSON langsung
         try:
-            groq_output = call_groq(prompt)
-            data = json.loads(groq_output)
-        except Exception as e:
-            print(f"⚠️ Gagal memproses {file_path.name}: {e}")
-            continue
+            parsed = json.loads(reply)
+        except:
+            parsed = {"raw_output": reply}
 
-        merge_artist_data(data, artist_name)
+        return parsed
+    except Exception as e:
+        return {"error": str(e)}
 
-print("\n✅ Semua file selesai diproses.")
+# Jalankan parsing semua link
+for i, url in enumerate(links, start=1):
+    print(f"\n🔍 [{i}/{len(links)}] Parsing: {url}")
+
+    html = fetch_html(url)
+    if not html:
+        print("⛔ Skip karena gagal ambil HTML")
+        continue
+
+    text = clean_lyrics(html)
+    parsed = parse_with_groq(text, url)
+
+    # Simpan hasil
+    filename = f"data_clean/{str(i).zfill(4)}.json"
+    with open(filename, "w", encoding="utf-8") as f:
+        json.dump(parsed, f, ensure_ascii=False, indent=2)
+
+    print(f"✅ Tersimpan: {filename}")
+
+print("\n🎉 Semua proses selesai!")
