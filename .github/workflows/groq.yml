@@ -31,7 +31,7 @@ jobs:
       - name: Run Groq Parser
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          MODEL: llama-3.3-70b-versatile
+          MODEL: llama-3.3-70b-versatile   # bisa ganti model terbaru Groq
         run: |
           echo "🚀 Menjalankan parser_groq.py..."
           python parser_groq.py
@@ -41,6 +41,6 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git pull --rebase origin main || true
-          git add data_output/*.json || echo "Tidak ada file untuk commit"
+          git add data_clean/**/*.json || echo "Tidak ada file untuk commit"
           git commit -m "🤖 Update hasil parsing Groq" || echo "Tidak ada perubahan"
           git push origin main || echo "Push gagal"
