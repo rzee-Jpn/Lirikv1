@@ -1,44 +1,57 @@
-name: Auto Parse Music Data
+name: Groq Music Parser
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "data_raw/**"
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
-  parse-and-push:
+  parse_groq:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: "3.11"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install beautifulsoup4 groq
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install groq beautifulsoup4 requests
+          pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install transformers
 
-    - name: Set GitHub Actions user
-      run: |
-        git config --global user.name "github-actions[bot]"
-        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+      - name: Run Groq Parser
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY3 }}
+          MODEL: llama-3.3-70b-versatile
+        run: |
+          echo "🚀 Menjalankan parser_groq.py..."
+          python parser_groq.py
 
-    - name: Run parser
-      env:
-        GROQ_API_KEY2: ${{ secrets.GROQ_API_KEY3 }}
-      run: |
-        python scripts/parse_music.py  # ganti sesuai nama skrip Python
+      - name: Commit and push parsed data safely
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-    - name: Commit and push changes
-      run: |
-        git pull --rebase origin main || true
-        git add data_clean/**/*.json || echo "Tidak ada file untuk commit"
-        git commit -m "🤖 Update hasil parsing Groq" || echo "Tidak ada perubahan"
-        git push origin main || echo "Push gagal"
+          # Ambil update terbaru
+          git fetch origin main
+          git pull --rebase --autostash origin main || echo "Rebase gagal, lanjutkan"
+
+          # Commit metadata album
+          git add data_clean/metadata_album.json
+          git commit -m "🤖 Update metadata album" || echo "Tidak ada perubahan metadata"
+
+          # Commit lirik per lagu
+          git add data_clean/lirik/**/*.json || echo "Tidak ada file lirik baru"
+          git commit -m "🤖 Update lirik lagu" || echo "Tidak ada perubahan lirik"
+
+          # Push semua
+          git push origin main || echo "Push gagal, mungkin non-fast-forward"
