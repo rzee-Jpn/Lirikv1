@@ -1,4 +1,4 @@
-name: Groq Music Parser
+ name: Groq Music Parser
 
 on:
   workflow_dispatch:
@@ -50,13 +50,17 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Commit semua JSON di data_clean termasuk subfolder
-          if compgen -G "data_clean/**/*.json" > /dev/null; then
-            git add data_clean/**/*.json
-          fi
+          # Aktifkan globstar agar **/** bisa rekursif
+          shopt -s globstar
 
-          git commit -m "🤖 Update parsed JSON" || echo "Tidak ada perubahan"
-          
-          # Push dengan rebase agar aman non-fast-forward
-          git pull --rebase origin main || echo "Pull gagal, lanjutkan"
-          git push origin main || echo "Push gagal, mungkin non-fast-forward"
+          # Tambahkan semua file JSON, termasuk subfolder
+          git add data_clean/**/*.json
+
+          # Commit hanya jika ada perubahan
+          if ! git diff --cached --quiet; then
+            git commit -m "🤖 Update parsed JSON"
+            git pull --rebase origin main || echo "⚠️ Pull gagal, lanjutkan push"
+            git push origin main || echo "⚠️ Push gagal, mungkin non-fast-forward"
+          else
+            echo "✅ Tidak ada perubahan yang perlu di-commit"
+          fi
