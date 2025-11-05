@@ -5,5 +5,8 @@
     "Diskografi": []
   },
   "groq_status": "failed",
-  "groq_error": "Error code: 429 - {'error': {'message': 'Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01k9711qmrecab23ktdhzgdn28` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99984, Requested 1172. Please try again in 16m38.784s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}"
+  "groq_error": [
+    "JSONDecodeError di chunk",
+    "JSONDecodeError di chunk"
+  ]
 }
