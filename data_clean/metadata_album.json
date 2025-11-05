@@ -3,6 +3,12 @@
     "album": "unknown_album",
     "penyanyi": "",
     "rilis": "",
-    "lagu": []
+    "lagu": [
+      {
+        "judul": "unknown",
+        "durasi": "",
+        "file_lirik": "lirik/unknown.json"
+      }
+    ]
   }
 }
