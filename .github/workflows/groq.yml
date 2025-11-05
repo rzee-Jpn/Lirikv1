@@ -33,34 +33,16 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY3 }}
           MODEL: llama-3.3-70b-versatile
         run: |
-          echo "🚀 Menjalankan parser_groq.py..."
+          mkdir -p data_clean/lirik
+          touch data_clean/lirik/.gitkeep
           python parser_groq.py
 
-      - name: Commit and push parsed data safely
+      - name: Commit and push parsed data
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-          # --- Buat folder lirik jika belum ada
-          mkdir -p data_clean/lirik
-
-          # --- Simpan perubahan sementara (stash)
-          git stash push --include-untracked || echo "Tidak ada file untuk stash"
-
-          # --- Ambil update remote
-          git fetch origin main
-          git pull --rebase origin main || echo "Rebase gagal, lanjutkan"
-
-          # --- Keluarkan kembali perubahan lokal
-          git stash pop || echo "Tidak ada file untuk pop stash"
-
-          # --- Commit metadata album
           git add data_clean/metadata_album.json
-          git commit -m "🤖 Update metadata album" || echo "Tidak ada perubahan metadata"
-
-          # --- Commit lirik per lagu
-          git add data_clean/lirik/**/*.json || echo "Tidak ada file lirik baru"
-          git commit -m "🤖 Update lirik lagu" || echo "Tidak ada perubahan lirik"
-
-          # --- Push ke remote
+          git add data_clean/lirik/**/*.json
+          git commit -m "🤖 Update metadata album & lirik" || echo "Tidak ada perubahan"
           git push origin main || echo "Push gagal, mungkin non-fast-forward"
