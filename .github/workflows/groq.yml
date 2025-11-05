@@ -34,7 +34,7 @@ jobs:
       # --- Run Groq parser ---
       - name: Run Groq Parser
         env:
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY3 }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY4 }}
           MODEL: llama-3.3-70b-versatile
         run: |
           # Pastikan folder output ada
