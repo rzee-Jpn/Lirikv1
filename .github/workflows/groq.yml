@@ -11,16 +11,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # --- Checkout repo ---
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      # --- Setup Python ---
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
+      # --- Install dependencies ---
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -28,26 +31,32 @@ jobs:
           pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
           pip install transformers
 
+      # --- Run Groq parser ---
       - name: Run Groq Parser
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY3 }}
           MODEL: llama-3.3-70b-versatile
         run: |
+          # Pastikan folder output ada
           mkdir -p data_clean/lirik
-          touch data_clean/lirik/.gitkeep
+          mkdir -p data_clean/unknown
+
+          # Jalankan parser
           python parser_groq.py
 
+      # --- Commit & Push semua file JSON ---
       - name: Commit and push parsed data
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add data_clean/metadata_album.json
-
-          # Commit semua file lirik jika ada
-          if compgen -G "data_clean/lirik/**/*.json" > /dev/null; then
-            git add data_clean/lirik/**/*.json
+          # Commit semua JSON di data_clean termasuk subfolder
+          if compgen -G "data_clean/**/*.json" > /dev/null; then
+            git add data_clean/**/*.json
           fi
 
-          git commit -m "🤖 Update metadata album & lirik" || echo "Tidak ada perubahan"
+          git commit -m "🤖 Update parsed JSON" || echo "Tidak ada perubahan"
+          
+          # Push dengan rebase agar aman non-fast-forward
+          git pull --rebase origin main || echo "Pull gagal, lanjutkan"
           git push origin main || echo "Push gagal, mungkin non-fast-forward"
