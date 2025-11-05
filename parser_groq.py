@@ -9,7 +9,7 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 RAW_DIR = "data_raw"
 OUT_DIR = "data_clean"
 LYRIC_DIR = os.path.join(OUT_DIR, "lirik")
-MODEL = os.getenv("MODEL", "llama-3.3-70b-versatile")
+MODEL = "llama-3.3-70b-versatile"
 
 os.makedirs(LYRIC_DIR, exist_ok=True)
 
@@ -28,7 +28,7 @@ def save_json(filename, data, subfolder=""):
 
 # --- Fungsi parsing Groq ---
 def parse_with_groq(raw_text):
-    prompt = """
+    prompt = f"""
 Kamu adalah sistem yang menstrukturkan data musik dari teks mentah menjadi JSON fleksibel.
 Keluarkan JSON valid, pisahkan info album dan lirik.
 """
@@ -42,6 +42,7 @@ Keluarkan JSON valid, pisahkan info album dan lirik.
         data = json.loads(raw_response)
         return data, raw_response, "success", []
     except Exception as e:
+        print(f"⚠️ Error parsing: {e}")
         return {}, "", "failed", [str(e)]
 
 # --- MAIN PROCESS ---
@@ -60,6 +61,10 @@ for file in os.listdir(RAW_DIR):
     text = clean_text(html)
     parsed_data, raw_resp, status, errors = parse_with_groq(text)
 
+    if status != "success":
+        print(f"⚠️ Parsing gagal untuk {file}, lewati...")
+        continue
+
     album_name = parsed_data.get("album", "unknown_album")
     album_name_safe = re.sub(r"[^\w\d]+", "_", album_name)
 
@@ -71,22 +76,19 @@ for file in os.listdir(RAW_DIR):
         "lagu": []
     }
 
-    tracklist = parsed_data.get("tracklist_single", [])
-    if not tracklist:
-        print(f"⚠️ Tidak ada tracklist untuk album {album_name}")
-
     # Simpan lirik tiap lagu
-    for lagu in tracklist or [{"judul": "unknown", "durasi": ""}]:
-        judul = lagu.get("judul", "unknown")
+    tracklist = parsed_data.get("tracklist_single") or []
+    for lagu in tracklist:
+        judul = lagu.get("judul")
+        if not judul:
+            continue
         judul_safe = re.sub(r"[^\w\d]+", "_", judul)
         lyric_file = f"{judul_safe}.json"
-        lyric_path = os.path.join("lirik", lyric_file)
 
-        # ambil lirik, jika tidak ada pakai placeholder
-        lirik_data = parsed_data.get("terjemahan_lirik", {})
-        if not lirik_data:
-            lirik_data = {"kanji": "", "romaji": "", "bahasa_indonesia": ""}
+        # Ambil lirik, jika kosong pakai placeholder
+        lirik_data = parsed_data.get("terjemahan_lirik") or {"kanji": "", "romaji": "", "bahasa_indonesia": ""}
 
+        # simpan file lirik terpisah
         save_json(lyric_file, {
             "judul": judul,
             "penyanyi": parsed_data.get("penyanyi", ""),
@@ -94,6 +96,7 @@ for file in os.listdir(RAW_DIR):
         }, subfolder="lirik")
 
         # tambahkan link file lirik ke metadata album
+        lyric_path = os.path.join("lirik", lyric_file)
         metadata_album[album_name_safe]["lagu"].append({
             "judul": judul,
             "durasi": lagu.get("durasi", ""),
@@ -102,3 +105,5 @@ for file in os.listdir(RAW_DIR):
 
 # --- Simpan metadata album ---
 save_json("metadata_album.json", metadata_album)
+
+print("🎉 Parsing selesai! Semua lirik dan metadata tersimpan.")
