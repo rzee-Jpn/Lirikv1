@@ -1,122 +1,150 @@
 import os
 import json
+import re
+from bs4 import BeautifulSoup
+from groq import Groq
 
-# ===============================
-# Contoh data album & lagu
-# ===============================
-albums_data = [
-    {
-        "album": "Album 1",
-        "penyanyi": "Fujii Kaze",
-        "tahun_rilis": "2022",
-        "lagu": [
-            {
-                "judul_lagu": "Grace",
-                "tanggal_rilis": "10 Oktober 2022",
-                "jenis_rilis": "Digital single",
-                "tema_lirik": "Anugerah",
-                "lokasi_syuting": "Uttarakhand, India",
-                "deskripsi_lirik": "Lirik lagu ini menceritakan tentang perjalanan spiritual, dari kehampaan hingga menemukan Tuhan dan menjadi bebas.",
-                "lirik_asli": [
-                    "Grace, grace, grace, grace",
-                    "Koe o karashite, sakebu kotoba mo nakute",
-                    "Watashi wa tada mi o hiita ano kage kara"
-                ],
-                "lirik_terjemahan": [
-                    "Anugerah, anugerah, anugerah, anugerah",
-                    "Suara nan serak, kata-kata 'tuk diteriakkan pun menghilang",
-                    "Diriku baru saja menarik tubuh ini dari bayangan itu"
-                ]
-            },
-            {
-                "judul_lagu": "Song2",
-                "tanggal_rilis": "15 Oktober 2022",
-                "jenis_rilis": "Digital single",
-                "tema_lirik": "Cinta",
-                "lokasi_syuting": "Tokyo, Japan",
-                "deskripsi_lirik": "Lirik tentang cinta dan kehidupan.",
-                "lirik_asli": [
-                    "Original text 1",
-                    "Original text 2"
-                ],
-                "lirik_terjemahan": [
-                    "Terjemahan 1",
-                    "Terjemahan 2"
-                ]
-            }
-        ]
-    },
-    {
-        "album": "Album 2",
-        "penyanyi": "Fujii Kaze",
-        "tahun_rilis": "2023",
-        "lagu": [
-            {
-                "judul_lagu": "Lagu1",
-                "tanggal_rilis": "5 Januari 2023",
-                "jenis_rilis": "Digital single",
-                "tema_lirik": "Kehidupan",
-                "lokasi_syuting": "Osaka, Japan",
-                "deskripsi_lirik": "Tentang perjalanan hidup.",
-                "lirik_asli": ["Teks asli 1", "Teks asli 2"],
-                "lirik_terjemahan": ["Terjemahan 1", "Terjemahan 2"]
-            }
-        ]
+# --- KONFIGURASI ---
+client = Groq(api_key=os.getenv("GROQ_API_KEY2"))
+RAW_DIR = "data_raw"
+OUT_DIR = "data_clean"
+MODEL = "llama-3.3-70b-versatile"
+
+# --- UTILITAS ---
+def clean_text(html_content):
+    """Hapus tag HTML, ambil teks bersih"""
+    soup = BeautifulSoup(html_content, "html.parser")
+    return soup.get_text(separator="\n", strip=True)
+
+def save_json(filename, data, subfolder=""):
+    folder = os.path.join(OUT_DIR, subfolder) if subfolder else OUT_DIR
+    os.makedirs(folder, exist_ok=True)
+    out_path = os.path.join(folder, filename)
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    print(f"✅ Disimpan: {out_path}")
+
+def extract_json_blocks(raw_responses):
+    """Ambil semua blok JSON valid dari response Groq"""
+    combined_data = {
+        "Bio / Profil": {},
+        "Diskografi": [],
+        "Lirik": []
     }
-]
+    errors = []
 
-# ===============================
-# Folder utama tempat simpan JSON
-# ===============================
-album_root = "albums"
+    for chunk in raw_responses:
+        try:
+            json_texts = re.findall(r'\{.*?\}', chunk, flags=re.DOTALL)
+            for jt in json_texts:
+                data = json.loads(jt)
+                if "bio" in data:
+                    combined_data["Bio / Profil"].update(data.get("bio", {}))
+                if "diskografi" in data:
+                    combined_data["Diskografi"].extend(data.get("diskografi", []))
+                if "lirik" in data:
+                    if isinstance(data["lirik"], dict):
+                        combined_data["Lirik"].append(data["lirik"])
+                    else:
+                        combined_data["Lirik"].extend(data["lirik"])
+        except Exception as e:
+            errors.append(f"JSONDecodeError: {str(e)}")
+    
+    return combined_data, errors
 
-# ===============================
-# Generate folder, metadata, dan lirik
-# ===============================
-for album in albums_data:
-    album_name = album["album"].replace(" ", "_")
-    album_path = os.path.join(album_root, album_name)
-    lirik_path = os.path.join(album_path, "lirik")
-    os.makedirs(lirik_path, exist_ok=True)
+def parse_with_groq(raw_text):
+    """Memanggil Groq untuk menstrukturkan data musik menjadi JSON"""
+    try:
+        prompt = f"""
+Kamu adalah sistem yang menstrukturkan data musik dari teks mentah menjadi JSON fleksibel.
+Isi data boleh kosong jika tidak ada. Jangan ubah data lama, tapi tambahkan jika ada info baru.
+Keluarkan hanya JSON valid.
 
-    metadata = {
-        "album": album["album"],
-        "penyanyi": album["penyanyi"],
-        "tahun_rilis": album["tahun_rilis"],
-        "jumlah_lagu": len(album["lagu"]),
-        "lagu": []
-    }
+Teks mentah:
+\"\"\"{raw_text}\"\"\"
+"""
+        completion = client.chat.completions.create(
+            model=MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3
+        )
+        raw_response = completion.choices[0].message.content
+        parsed_info, errors = extract_json_blocks([raw_response])
 
-    for lagu in album["lagu"]:
-        # Nama file JSON lagu
-        lagu_file_name = f"{lagu['judul_lagu'].replace(' ', '_')}.json"
-        lagu_file_path = os.path.join(lirik_path, lagu_file_name)
+        return {
+            "raw_text": raw_text,
+            "parsed_info": parsed_info,
+            "groq_status": "success" if not errors else "failed",
+            "groq_error": errors,
+            "raw_response": raw_response
+        }
 
-        # Simpan lirik per lagu
-        with open(lagu_file_path, "w", encoding="utf-8") as f:
-            json.dump({
-                "judul_lagu": lagu["judul_lagu"],
-                "penyanyi": album["penyanyi"],
-                "tanggal_rilis": lagu["tanggal_rilis"],
-                "jenis_rilis": lagu["jenis_rilis"],
-                "tema_lirik": lagu["tema_lirik"],
-                "lokasi_syuting": lagu["lokasi_syuting"],
-                "deskripsi_lirik": lagu["deskripsi_lirik"],
-                "lirik": {
-                    "bahasa_asli": lagu["lirik_asli"],
-                    "terjemahan": lagu["lirik_terjemahan"]
-                }
-            }, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        return {
+            "raw_text": raw_text,
+            "parsed_info": {"Bio / Profil": {}, "Diskografi": [], "Lirik": []},
+            "groq_status": "failed",
+            "groq_error": [str(e)],
+            "raw_response": ""
+        }
 
-        # Tambahkan lagu ke metadata album
-        metadata["lagu"].append({
-            "judul": lagu["judul_lagu"],
-            "file_lirik": f"lirik/{lagu_file_name}"
-        })
+# --- FUNGSI SPLIT METADATA & LIRIK ---
+def split_metadata_lirik(parsed_info):
+    """
+    Hasil parse akan dipecah menjadi:
+    - metadata_album.json → info album + daftar lagu + link file lirik
+    - lirik/*.json → lirik tiap lagu
+    """
+    metadata_album = []
+
+    for album in parsed_info.get("Diskografi", []):
+        album_entry = {
+            "judul_album": album.get("judul_album", ""),
+            "tahun_rilis": album.get("tahun_rilis", ""),
+            "jenis_rilis": album.get("jenis_rilis", ""),
+            "lokasi_syuting": album.get("lokasi_syuting", ""),
+            "tema_album": album.get("tema_album", ""),
+            "daftar_lagu": []
+        }
+
+        for lagu in album.get("daftar_lagu", []):
+            judul_lagu = lagu.get("judul_lagu", "unknown")
+            safe_file = re.sub(r"[^\w\d_-]", "_", judul_lagu) + ".json"
+            link_file = f"lirik/{safe_file}"
+
+            # Simpan file lirik per lagu
+            save_json(safe_file, lagu.get("lirik", {}), subfolder="lirik")
+
+            # Tambahkan ke metadata album
+            lagu_entry = {
+                "judul_lagu": judul_lagu,
+                "penyanyi": lagu.get("penyanyi", ""),
+                "tanggal_rilis": lagu.get("tanggal_rilis", ""),
+                "link_lirik": link_file
+            }
+            album_entry["daftar_lagu"].append(lagu_entry)
+
+        metadata_album.append(album_entry)
 
     # Simpan metadata album
-    metadata_file_path = os.path.join(album_path, "metadata_album.json")
-    with open(metadata_file_path, "w", encoding="utf-8") as f:
-        json.dump(metadata, f, ensure_ascii=False, indent=2)
+    save_json("metadata_album.json", metadata_album)
 
-print("✅ Semua album & lirik berhasil dibuat!")
+# --- PROSES UTAMA ---
+for file in os.listdir(RAW_DIR):
+    if not file.endswith(".html"):
+        continue
+
+    file_path = os.path.join(RAW_DIR, file)
+    print(f"🧠 Memproses: {file}")
+
+    with open(file_path, "r", encoding="utf-8") as f:
+        html = f.read()
+
+    text = clean_text(html)
+    result = parse_with_groq(text)
+
+    folder = "unknown" if result.get("groq_status") == "failed" else ""
+    save_json(file.replace(".html", ".json"), result, subfolder=folder)
+
+    if result.get("groq_status") == "success":
+        split_metadata_lirik(result["parsed_info"])
