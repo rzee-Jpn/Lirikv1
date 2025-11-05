@@ -41,17 +41,26 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Ambil update terbaru
-          git fetch origin main
-          git pull --rebase --autostash origin main || echo "Rebase gagal, lanjutkan"
+          # --- Buat folder lirik jika belum ada
+          mkdir -p data_clean/lirik
 
-          # Commit metadata album
+          # --- Simpan perubahan sementara (stash)
+          git stash push --include-untracked || echo "Tidak ada file untuk stash"
+
+          # --- Ambil update remote
+          git fetch origin main
+          git pull --rebase origin main || echo "Rebase gagal, lanjutkan"
+
+          # --- Keluarkan kembali perubahan lokal
+          git stash pop || echo "Tidak ada file untuk pop stash"
+
+          # --- Commit metadata album
           git add data_clean/metadata_album.json
           git commit -m "🤖 Update metadata album" || echo "Tidak ada perubahan metadata"
 
-          # Commit lirik per lagu
+          # --- Commit lirik per lagu
           git add data_clean/lirik/**/*.json || echo "Tidak ada file lirik baru"
           git commit -m "🤖 Update lirik lagu" || echo "Tidak ada perubahan lirik"
 
-          # Push semua
+          # --- Push ke remote
           git push origin main || echo "Push gagal, mungkin non-fast-forward"
