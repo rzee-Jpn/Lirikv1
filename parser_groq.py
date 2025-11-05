@@ -6,7 +6,7 @@ from groq import Groq
 import hashlib
 
 # --- KONFIGURASI ---
-client = Groq(api_key=os.getenv("GROQ_API_KEY2"))
+client = Groq(api_key=os.getenv("GROQ_API_KEY3"))
 RAW_DIR = "data_raw"
 OUT_DIR = "data_clean"
 MODEL = "llama-3.3-70b-versatile"
