@@ -7,7 +7,7 @@
   },
   "groq_status": "failed",
   "groq_error": [
-    "Error code: 429 - {'error': {'message': 'Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01k971ncq0e93bwrsaay9vxy4z` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99261, Requested 1704. Please try again in 13m53.76s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}"
+    "JSONDecodeError: Expecting ',' delimiter: line 13 column 6 (char 388)"
   ],
-  "raw_response": ""
+  "raw_response": "Berikut adalah data dalam format JSON:\n\n```json\n{\n  \"judul_lagu\": \"I Beg You\",\n  \"penyanyi\": \"Aimer\",\n  \"lagu_tema\": \"Fate/stay night: Heaven's Feel II. lost butterfly\",\n  \"pencipta_lagu\": \"Yuki Kajiura\",\n  \"durasi_lagu\": \"4:30 menit\",\n  \"single\": \"I Beg You / Hanabiratachi no March / Sailing\",\n  \"rilis_single\": \"9 Januari 2019\",\n  \"tracklist_single\": [\n    {\n      \"judul_track\": \"I Beg You\",\n      \"durasi_track\": \"4:30 menit\"\n    },\n    {\n      \"judul_track\": \"Hanabira-tachi no māchi\",\n      \"durasi_track\": \"3:14 menit\"\n    },\n    {\n      \"judul_track\": \"Sailing\",\n      \"durasi_track\": \"5:37 menit\"\n    },\n    {\n      \"judul_track\": \"Mine -Mellow Yellow ver.\",\n      \"durasi_track\": \"5:31 menit\"\n    },\n    {\n      \"judul_track\": \"Polaris (haruka nakamura ursa remix)\",\n      \"durasi_track\": \"6:14 menit\"\n    }\n  ],\n  \"video_klip\": \"Dibintangi oleh Hamabe Minami\",\n  \"lagu_tema_lain\": [\n    {\n      \"judul_lagu\": \"Hana no Uta\",\n      \"lagu_tema\": \"Fate/stay night: Heaven's Feel I. presage flower\"\n    },\n    {\n      \"judul_lagu\": \"Haru wa Yuku\",\n      \"lagu_tema\": \"Fate/stay night: Heaven's Feel III. spring song\"\n    }\n  ],\n  \"lirik\": {\n    \"kanji\": \"...\",\n    \"romaji\": \"...\",\n    \"terjemahan\": \"...\"\n  }\n}\n```"
 }
