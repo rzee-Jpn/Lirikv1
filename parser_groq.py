@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 import textwrap
 
 # --- KONFIGURASI ---
-client = Groq(api_key=os.getenv("GROQ_API_KEY1"))
+client = Groq(api_key=os.getenv("GROQ_API_KEY2"))
 RAW_DIR = "data_raw"
 OUT_DIR = "data_clean"
 MODEL = "llama-3.3-70b-versatile"
