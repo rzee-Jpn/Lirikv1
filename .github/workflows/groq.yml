@@ -34,7 +34,6 @@ jobs:
           MODEL: llama-3.3-70b-versatile
         run: |
           mkdir -p data_clean/lirik
-          # Buat placeholder agar Git track folder kosong
           touch data_clean/lirik/.gitkeep
           python parser_groq.py
 
@@ -43,13 +42,11 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Commit metadata album
           git add data_clean/metadata_album.json
 
-          # Commit semua file lirik yang ada, termasuk .gitkeep agar folder selalu ada
-          git add data_clean/lirik/.gitkeep
-          if compgen -G "data_clean/lirik/*.json" > /dev/null; then
-            git add data_clean/lirik/*.json
+          # Commit semua file lirik jika ada
+          if compgen -G "data_clean/lirik/**/*.json" > /dev/null; then
+            git add data_clean/lirik/**/*.json
           fi
 
           git commit -m "🤖 Update metadata album & lirik" || echo "Tidak ada perubahan"
