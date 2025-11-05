@@ -6,6 +6,12 @@
     "Lirik": []
   },
   "groq_status": "failed",
-  "groq_error": "Error code: 429 - {'error': {'message': 'Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01k9711qmrecab23ktdhzgdn28` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99279, Requested 1066. Please try again in 4m58.08s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
-  "raw_response": []
+  "raw_response": [
+    "Berikut adalah data musik dalam format JSON:\n\n```json\n{\n  \"judul_lagu\": \"Cureless\",\n  \"album\": \"HEAVENLY\",\n  \"tahun_rilis\": 1995,\n  \"penulis_lirik\": \"Hyde\",\n  \"pencipta_musik\": \"Tetsu\",\n  \"track\": 8,\n  \"lirik\": {\n    \"bahasa_asli\": \"Jepang\",\n    \"terjemahan\": \"Bahasa Indonesia\"\n  },\n  \"deskripsi\": \"Lagu tentang patah hati dengan lirik yang manis khas Hyde\",\n  \"informasi_tambahan\": {\n    \"genre\": null,\n    \"durasi\": null,\n    \"produser\": null\n  }\n}\n```\n\nPerlu diingat bahwa beberapa informasi seperti genre, durasi, dan produser tidak disebutkan dalam teks mentah, sehingga diisi dengan `null`. Jika Anda memiliki informasi tambahan, Anda dapat menambahkannya ke dalam JSON di atas.",
+    "Berikut adalah struktur data JSON yang dihasilkan dari teks mentah yang diberikan:\n\n```json\n{\n  \"lirik\": \"itu tak bisa jadi cinta shiroi toiki ni furuete iru anata ga setsunakute sotto daki yoseta anata no mukoo gawa ni ano hi no watashi ga yurete kieta\",\n  \"terjemahan\": \"kutak bisa menyembuhkan engkau yang menggigil dalam putihnya desah perlahan, kupeluk erat sisi lain dirimu aku yang berguncang di hari itu, pun lenyap\",\n  \"judul\": \"\",\n  \"artis\": \"\",\n  \"album\": \"\",\n  \"genre\": \"\",\n  \"tahun_rilis\": \"\",\n  \"link\": \"Lihat Asli\"\n}\n```\n\nPerlu diingat bahwa beberapa informasi seperti judul, artis, album, genre, dan tahun rilis tidak tersedia dalam teks mentah yang diberikan, sehingga diisi dengan string kosong. Jika informasi tambahan diberikan, maka struktur data JSON dapat diperbarui dengan menambahkan informasi tersebut."
+  ],
+  "groq_error": [
+    "JSONDecodeError setelah clean response",
+    "JSONDecodeError setelah clean response"
+  ]
 }
