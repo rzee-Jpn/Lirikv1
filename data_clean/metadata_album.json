@@ -1,14 +1,1 @@
-{
-  "unknown_album": {
-    "album": "unknown_album",
-    "penyanyi": "",
-    "rilis": "",
-    "lagu": [
-      {
-        "judul": "unknown",
-        "durasi": "",
-        "file_lirik": "lirik/unknown.json"
-      }
-    ]
-  }
-}
+{}
