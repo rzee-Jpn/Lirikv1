@@ -6,6 +6,6 @@
     "Lirik": []
   },
   "groq_status": "failed",
-  "groq_error": "Error code: 429 - {'error': {'message': 'Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01k9711qmrecab23ktdhzgdn28` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99338, Requested 1281. Please try again in 8m54.816s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
+  "groq_error": "Error code: 429 - {'error': {'message': 'Rate limit reached for model `llama-3.3-70b-versatile` in organization `org_01k9711qmrecab23ktdhzgdn28` service tier `on_demand` on tokens per day (TPD): Limit 100000, Used 99279, Requested 1281. Please try again in 8m3.84s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}",
   "raw_response": []
 }
