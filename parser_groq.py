@@ -9,7 +9,7 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 RAW_DIR = "data_raw"
 OUT_DIR = "data_clean"
 LYRIC_DIR = os.path.join(OUT_DIR, "lirik")
-MODEL = "llama-3.3-70b-versatile"
+MODEL = os.getenv("MODEL", "llama-3.3-70b-versatile")
 
 os.makedirs(LYRIC_DIR, exist_ok=True)
 
@@ -28,7 +28,7 @@ def save_json(filename, data, subfolder=""):
 
 # --- Fungsi parsing Groq ---
 def parse_with_groq(raw_text):
-    prompt = f"""
+    prompt = """
 Kamu adalah sistem yang menstrukturkan data musik dari teks mentah menjadi JSON fleksibel.
 Keluarkan JSON valid, pisahkan info album dan lirik.
 """
@@ -62,7 +62,7 @@ for file in os.listdir(RAW_DIR):
 
     album_name = parsed_data.get("album", "unknown_album")
     album_name_safe = re.sub(r"[^\w\d]+", "_", album_name)
-    
+
     # Simpan metadata per album
     metadata_album[album_name_safe] = {
         "album": album_name,
@@ -71,20 +71,26 @@ for file in os.listdir(RAW_DIR):
         "lagu": []
     }
 
+    tracklist = parsed_data.get("tracklist_single", [])
+    if not tracklist:
+        print(f"⚠️ Tidak ada tracklist untuk album {album_name}")
+
     # Simpan lirik tiap lagu
-    for lagu in parsed_data.get("tracklist_single", []):
-        judul = lagu.get("judul")
-        if not judul:
-            continue
+    for lagu in tracklist or [{"judul": "unknown", "durasi": ""}]:
+        judul = lagu.get("judul", "unknown")
         judul_safe = re.sub(r"[^\w\d]+", "_", judul)
         lyric_file = f"{judul_safe}.json"
         lyric_path = os.path.join("lirik", lyric_file)
 
-        # simpan file lirik terpisah
+        # ambil lirik, jika tidak ada pakai placeholder
+        lirik_data = parsed_data.get("terjemahan_lirik", {})
+        if not lirik_data:
+            lirik_data = {"kanji": "", "romaji": "", "bahasa_indonesia": ""}
+
         save_json(lyric_file, {
             "judul": judul,
             "penyanyi": parsed_data.get("penyanyi", ""),
-            "lirik": parsed_data.get("terjemahan_lirik", {})
+            "lirik": lirik_data
         }, subfolder="lirik")
 
         # tambahkan link file lirik ke metadata album
