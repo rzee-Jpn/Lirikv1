@@ -33,8 +33,10 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY3 }}
           MODEL: llama-3.3-70b-versatile
         run: |
+          # Pastikan folder lirik ada, buat file placeholder agar Git track folder kosong
           mkdir -p data_clean/lirik
           touch data_clean/lirik/.gitkeep
+
           python parser_groq.py
 
       - name: Commit and push parsed data
@@ -42,7 +44,13 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
+          # Commit metadata album
           git add data_clean/metadata_album.json
-          git add data_clean/lirik/**/*.json
+
+          # Commit semua file lirik yang ada, aman walau folder kosong
+          if compgen -G "data_clean/lirik/**/*.json" > /dev/null; then
+            git add data_clean/lirik/**/*.json
+          fi
+
           git commit -m "🤖 Update metadata album & lirik" || echo "Tidak ada perubahan"
           git push origin main || echo "Push gagal, mungkin non-fast-forward"
