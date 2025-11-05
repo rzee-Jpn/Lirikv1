@@ -1,4 +1,4 @@
- name: Groq Music Parser
+name: Groq Music Parser
 
 on:
   workflow_dispatch:
