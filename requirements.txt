@@ -1,3 +1,5 @@
 beautifulsoup4
 lxml
 groq
+pip install pymupdf pillow pytesseract python-slugify
+sudo apt install tesseract-ocr
