@@ -1,0 +1,60 @@
+pipeline:
+  mode: batch
+  source: pdf
+  fail_safe: true   # jangan pernah gagal total
+
+paths:
+  input_pdfs: input_pdfs
+  output: output
+  cache: cache/results_cache.json
+
+pdf:
+  min_text_threshold: 30     # di bawah ini dianggap scan
+  dpi: 300                   # kualitas OCR
+  ocr_enabled: true
+  ocr_mode: raw              # raw = mentah, tanpa normalisasi bahasa
+  ocr_languages:
+    - eng
+    - ind
+    - rus
+    - jav                     # jika tersedia di tesseract
+
+chapters:
+  detection: auto
+  fallback: merge_all         # jika tidak terdeteksi → digabung
+  default_title: Gabungan Teks
+  default_id: gabungan
+
+content:
+  output_format: json
+  paragraph_mode: loose       # aman untuk aksara non-latin
+  encoding: utf-8
+  normalize_whitespace: true
+
+estimation:
+  method: character
+  chars_per_minute: 200
+
+book:
+  metadata:
+    subtitle: "Antologi Teks dan Ingatan Peradaban"
+    author: "Anonim"
+    publisher: "Arsip Digital Nusantara"
+    language: multi
+    readingDirection: ltr
+
+  settings:
+    defaultTheme: paper
+    defaultFontSize: 17
+    enableTTS: true
+    enableBookmark: true
+
+cache:
+  enabled: true
+  strategy: hash
+  skip_if_unchanged: true
+
+logging:
+  level: info
+  show_skipped: true
+  show_processed: true
